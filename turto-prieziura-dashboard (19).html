@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1280">
+  <title>Turto priežiūros sąnaudos</title>
+  <style>
+    :root {
+      --font: "Segoe UI", system-ui, sans-serif;
+      --canvas: #F8F7F6;
+      --surface: #FFFFFF;
+      --border: #E0E0E0;
+      --radius: 8px;
+      --text-primary: #1A1A1A;
+      --text-secondary: #6B7280;
+      --text-muted: #9E9E9E;
+      --accent: #F5C300;
+      --success: #16A34A;
+      --warning: #D97706;
+      --danger: #DC2626;
+      --nav-w: 48px;
+      --topbar-bg: #1E2D3D;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      background: #D1D5DB;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font);
+    }
+    .report-canvas {
+      width: 1280px; height: 720px; flex-shrink: 0; overflow: hidden;
+      display: flex; flex-direction: column;
+      background: var(--canvas);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    }
+
+    /* TOPBAR */
+    .topbar {
+      height: 50px; flex-shrink: 0;
+      background: var(--topbar-bg);
+      display: flex; align-items: center;
+      padding: 0 0 0 var(--nav-w);
+      border-bottom: 1px solid rgba(0,0,0,0.2);
+    }
+    .topbar-inner {
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 20px; flex: 1;
+    }
+    .topbar-logo {
+      width: 28px; height: 28px;
+      background: rgba(255,255,255,0.12); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #fff;
+    }
+    .topbar-title { font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
+    .topbar-sep   { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 2px; }
+    .topbar-sub   { font-size: 12px; color: rgba(255,255,255,0.45); }
+    .topbar-right { margin-left: auto; }
+    .topbar-badge {
+      background: rgba(255,255,255,0.1); border-radius: 4px;
+      padding: 3px 10px; font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.85);
+      letter-spacing: 0.2px;
+    }
+
+    /* BODY ROW — nav + main */
+    .body-row {
+      flex: 1; min-height: 0;
+      display: flex; overflow: hidden;
+    }
+
+    /* LEFT NAV */
+    .sidebar {
+      width: var(--nav-w); flex-shrink: 0;
+      background: var(--topbar-bg);
+      display: flex; flex-direction: column; align-items: center;
+      padding: 8px 0; gap: 4px;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+    .nav-item {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; position: relative;
+      color: rgba(255,255,255,0.4);
+      transition: background .15s, color .15s;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
+    .nav-item.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .nav-item svg { width: 18px; height: 18px; }
+    .nav-item .nav-tooltip {
+      position: absolute; left: calc(var(--nav-w) - 4px); top: 50%;
+      transform: translateY(-50%);
+      background: #1E2D3D; color: #fff;
+      font-size: 11px; font-weight: 500; white-space: nowrap;
+      padding: 4px 8px; border-radius: 4px;
+      pointer-events: none; opacity: 0; transition: opacity .15s;
+      z-index: 100; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .nav-item:hover .nav-tooltip { opacity: 1; }
+    .nav-divider { width: 24px; height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+
+    /* MAIN AREA */
+    .main-area {
+      flex: 1; min-width: 0; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+
+    /* FILTERBAR */
+    .filterbar {
+      height: 46px; flex-shrink: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 0 14px; gap: 0;
+    }
+    .f-group { display: flex; align-items: center; gap: 4px; padding: 0 8px; flex-shrink: 0; }
+    .f-group:first-child { padding-left: 0; }
+    .f-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+    .f-group label { font-size: 10px; color: var(--text-secondary); white-space: nowrap; }
+    .f-group input.date-input,
+    .f-group select {
+      height: 26px; border: 1px solid var(--border); border-radius: 4px;
+      font-size: 10px; font-family: var(--font);
+      color: var(--text-primary); background: var(--canvas);
+      padding: 0 4px; outline: none; cursor: pointer;
+    }
+    .f-group input.date-input { width: 86px; cursor: text; }
+    .f-group input.date-input:focus { border-color: #475569; }
+    .f-group select { width: 100px; padding-right: 18px; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236B7280'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 5px center; }
+    .f-group select.wide { width: 118px; }
+    .btn-reset {
+      margin-left: auto; height: 26px; padding: 0 10px; flex-shrink: 0;
+      border: 1px solid var(--border); border-radius: 4px;
+      background: var(--surface); font-size: 10px; font-family: var(--font);
+      color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+    }
+    .btn-reset:hover { border-color: #999; color: var(--text-primary); }
+
+    /* CONTENT */
+    .content { flex: 1; min-height: 0; overflow: hidden; }
+    .page { display: none; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; }
+    .page.active { display: flex; }
+
+    /* P1 */
+    .p1-body {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column;
+      padding: 12px 16px 10px; gap: 10px; overflow: hidden;
+    }
+
+    /* KPI */
+    .kpi-row {
+      display: grid; grid-template-columns: repeat(4,1fr);
+      gap: 10px; flex-shrink: 0;
+    }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 14px;
+      display: flex; flex-direction: column; gap: 0;
+      height: 78px;
+    }
+    .kpi-label { font-size: 10px; color: var(--text-muted); font-weight: 500; line-height: 1.3; flex-shrink: 0; }
+    .kpi-value { font-size: 22px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.5px; line-height: 1; flex: 1; display: flex; align-items: center; }
+    .kpi-value.danger  { color: var(--danger); }
+    .kpi-value.success { color: var(--success); }
+    .kpi-sub { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+    /* CHARTS */
+    .charts-row { display: flex; gap: 10px; flex-shrink: 0; height: 262px; }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 11px 13px 8px;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .chart-card.left  { flex: 0 0 62%; }
+    .chart-card.right { flex: 1; }
+    .chart-title { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; flex-shrink: 0; }
+    .chart-legend {
+      display: flex; gap: 12px; margin-top: 5px;
+      justify-content: center; flex-shrink: 0;
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--text-secondary); }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .chart-wrap  { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+    .chart-wrap canvas { display: block; }
+
+    /* TABLE — fixed height, never grows */
+    .table-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .table-hdr {
+      display: flex; align-items: center; padding: 7px 12px;
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .table-ttl  { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+    .table-hint { font-size: 10px; color: var(--text-muted); margin-left: 6px; }
+    .tbl-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+    .tbl-scroll::-webkit-scrollbar { width: 4px; }
+    .tbl-scroll::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead th {
+      position: sticky; top: 0; z-index: 1; background: var(--canvas);
+      padding: 6px 10px; text-align: left;
+      font-size: 10px; font-weight: 600; color: var(--text-secondary);
+      border-bottom: 1px solid var(--border); white-space: nowrap;
+    }
+    thead th.num { text-align: right; }
+    tbody tr { border-bottom: 1px solid #F3F3F3; cursor: pointer; transition: background .1s; }
+    tbody tr:hover { background: #F0F4FF; }
+    tbody td { padding: 6px 10px; color: var(--text-primary); white-space: nowrap; }
+    tbody td.num   { text-align: right; }
+    tbody td.muted { color: var(--text-muted); }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.ok  { background: var(--success); }
+    .status-dot.off { background: var(--text-muted); }
+    .dv  { font-weight: 600; }
+    .pos { color: var(--danger); }
+    .neg { color: var(--success); }
+
+    /* P2 meta — single horizontal strip */
+    .meta-strip {
+      display: flex; gap: 0; flex-shrink: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    .meta-cell {
+      flex: 1; padding: 10px 14px;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 3px; min-width: 0;
+    }
+    .meta-cell:last-child { border-right: none; }
+    .meta-lbl { font-size: 10px; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+    .meta-val { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta-val.danger  { color: var(--danger); }
+    .meta-val.success { color: var(--success); }
+    .p2-body {
+      flex: 1; min-height: 0; height: 100%;
+      display: flex; flex-direction: column;
+      padding: 14px 16px 12px; gap: 10px; overflow: hidden;
+    }
+    .p2-top { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .btn-back {
+      display: flex; align-items: center; gap: 5px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px; font-size: 11px; font-weight: 600;
+      color: var(--text-secondary); cursor: pointer; white-space: nowrap;
+    }
+    .btn-back:hover { border-color: #aaa; color: var(--text-primary); }
+    .p2-name { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+    .p2-detail {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); flex: 1; min-height: 0;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .p2-det-ttl {
+      padding: 8px 12px; font-size: 12px; font-weight: 600;
+      color: var(--text-primary); border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+<div class="report-canvas">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-logo">TM</div>
+      <div class="topbar-title">Turto priežiūros sąnaudos</div>
+      <div class="topbar-sep"></div>
+      <div class="topbar-sub">Objektų sąnaudų monitoringas</div>
+      <div class="topbar-right">
+        <span class="topbar-badge" id="topbar-period">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BODY ROW -->
+  <div class="body-row">
+
+    <!-- SIDEBAR NAV -->
+    <div class="sidebar">
+      <div class="nav-item active" id="nav-p1" onclick="navTo('p1')" title="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <div class="nav-tooltip">Sąnaudų suvestinė</div>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" id="nav-p3" onclick="navTo('p3')" title="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/>
+        </svg>
+        <div class="nav-tooltip">Tendencijos</div>
+      </div>
+      <div class="nav-item" id="nav-p4" onclick="navTo('p4')" title="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 3"/>
+        </svg>
+        <div class="nav-tooltip">Priežiūros grafikas</div>
+      </div>
+      <div class="nav-item" id="nav-p5" onclick="navTo('p5')" title="">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <div class="nav-tooltip">Ataskaitos</div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main-area">
+
+      <!-- FILTERBAR -->
+      <div class="filterbar" id="filterbar">
+        <div class="f-group">
+          <label>Pradžios data</label>
+          <input class="date-input" id="f-from" value="2024-01-01" placeholder="MMMM-MM-DD" maxlength="10">
+        </div>
+        <div class="f-group">
+          <label>Pabaigos data</label>
+          <input class="date-input" id="f-to" value="2024-12-31" placeholder="MMMM-MM-DD" maxlength="10">
+        </div>
+        <div class="f-sep"></div>
+        <div class="f-group">
+          <label>Objektas</label>
+          <select id="f-obj">
+            <option value="">Select all</option>
+            <option>Objektas A</option><option>Objektas B</option><option>Objektas C</option>
+            <option>Objektas D</option><option>Objektas E</option><option>Objektas F</option>
+            <option>Objektas G</option><option>Objektas H</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>Darbuotojas</label>
+          <select id="f-emp">
+            <option value="">Select all</option>
+            <option>Tomas Januškevičius</option><option>Rūta Petrauskienė</option>
+            <option>Darius Mockus</option><option>Linas Šimkus</option><option>Jelena Žukova</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>Paslauga</label>
+          <select id="f-svc">
+            <option value="">Select all</option>
+            <option>Priežiūra</option><option>Remontas</option><option>Valymas</option>
+            <option>Inspektavimas</option><option>Kalibracija</option>
+          </select>
+        </div>
+        <div class="f-group">
+          <label>Apskaitos eilutė</label>
+          <select id="f-acc" class="wide">
+            <option value="">Select all</option>
+            <option>Remonto sąnaudos</option><option>Priežiūros sąnaudos</option>
+            <option>Paslaugų sąnaudos</option>
+          </select>
+        </div>
+        <button class="btn-reset" onclick="resetFilters()">Išvalyti</button>
+      </div>
+
+      <!-- CONTENT -->
+      <div class="content">
+
+        <!-- PAGE 1 -->
+        <div class="page active" id="p1">
+          <div class="p1-body">
+
+            <!-- KPIs -->
+            <div class="kpi-row">
+              <div class="kpi-card">
+                <div class="kpi-label">Visos paslaugų sąnaudos (faktinės)</div>
+                <div class="kpi-value" id="kpi-actual">—</div>
+                <div class="kpi-sub">Pasirinktas laikotarpis</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Priskirtas biudžetas</div>
+                <div class="kpi-value" id="kpi-budget">—</div>
+                <div class="kpi-sub">Pagal pajamų %</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Sąnaudų vs biudžeto skirtumas</div>
+                <div class="kpi-value" id="kpi-delta">—</div>
+                <div class="kpi-sub" id="kpi-delta-sub">—</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Objektai viršijantys biudžetą</div>
+                <div class="kpi-value" id="kpi-over">—</div>
+                <div class="kpi-sub" id="kpi-over-sub">—</div>
+              </div>
+            </div>
+
+            <!-- CHARTS -->
+            <div class="charts-row">
+              <div class="chart-card left">
+                <div class="chart-title">Sąnaudų skirtumas nuo biudžeto pagal objektą</div>
+                <div class="chart-wrap" id="wrap-obj"><canvas id="chart-obj"></canvas></div>
+                <div class="chart-legend">
+                  <div class="legend-item"><div class="legend-dot" style="background:#DC2626"></div>Viršija biudžetą</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#16A34A"></div>Nepasiekė biudžeto</div>
+                </div>
+              </div>
+              <div class="chart-card right">
+                <div class="chart-title">Sąnaudos pagal paslaugą</div>
+                <div class="chart-wrap" id="wrap-svc"><canvas id="chart-svc"></canvas></div>
+              </div>
+            </div>
+
+            <!-- TABLE -->
+            <div class="table-card">
+              <div class="table-hdr">
+                <span class="table-ttl">Turto sąrašas</span>
+                <span class="table-hint" id="tbl-count">—</span>
+                <span class="table-hint">— spustelėkite eilutę detaliam peržiūrai</span>
+              </div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Turtas</th>
+                      <th class="num">Vertė (€)</th>
+                      <th style="text-align:center">St.</th>
+                      <th>Objektas</th>
+                      <th class="num">Įrašai</th>
+                      <th class="num">Faktinės (€)</th>
+                      <th class="num">Biudžetas (€)</th>
+                      <th class="num">Skirtumas (€)</th>
+                      <th>Paslauga</th>
+                    </tr>
+                  </thead>
+                  <tbody id="p1-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- PAGE 2 -->
+        <div class="page" id="p2">
+          <div class="p2-body">
+            <div class="p2-top">
+              <button class="btn-back" onclick="goBack()">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 12L6 8l4-4"/></svg>
+                Grįžti
+              </button>
+              <div class="p2-name" id="p2-name">—</div>
+            </div>
+            <div class="meta-strip">
+              <div class="meta-cell"><div class="meta-lbl">Objektas</div><div class="meta-val" id="m-obj">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Statusas</div><div class="meta-val" id="m-status">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Vertė (€)</div><div class="meta-val" id="m-value">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Darbuotojas</div><div class="meta-val" id="m-emp">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Paslauga</div><div class="meta-val" id="m-svc">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Apskaitos eilutė</div><div class="meta-val" id="m-acc">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Faktinės (€)</div><div class="meta-val" id="m-actual">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Biudžetas (€)</div><div class="meta-val" id="m-budget">—</div></div>
+              <div class="meta-cell"><div class="meta-lbl">Skirtumas (€)</div><div class="meta-val" id="m-delta">—</div></div>
+            </div>
+            <div class="p2-detail">
+              <div class="p2-det-ttl">Priežiūros įrašai</div>
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Data</th><th>Aprašymas</th><th>Darbuotojas</th><th>Paslauga</th>
+                      <th class="num">Suma (€)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="p2-tbody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE 3 — Tendencijos -->
+        <div class="page" id="p3">
+          <div class="p1-body">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex-shrink:0;">
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;height:72px;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="font-size:10px;color:var(--text-muted);font-weight:500;">Didžiausios sąnaudos (mėn.)</div>
+                <div style="font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px;">8 400 €</div>
+                <div style="font-size:10px;color:var(--text-muted);">2024 m. sausis</div>
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;height:72px;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="font-size:10px;color:var(--text-muted);font-weight:500;">Mažiausios sąnaudos (mėn.)</div>
+                <div style="font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px;">3 200 €</div>
+                <div style="font-size:10px;color:var(--text-muted);">2024 m. kovas</div>
+              </div>
+              <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;height:72px;display:flex;flex-direction:column;justify-content:space-between;">
+                <div style="font-size:10px;color:var(--text-muted);font-weight:500;">Vidurkis per mėnesį</div>
+                <div style="font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px;">5 417 €</div>
+                <div style="font-size:10px;color:var(--text-muted);">2024 m. I–IV ketv.</div>
+              </div>
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);flex:1;min-height:0;padding:14px 16px 10px;display:flex;flex-direction:column;">
+              <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:6px;flex-shrink:0;">Mėnesinės sąnaudos — faktinės vs biudžetas</div>
+              <div style="display:flex;gap:14px;margin-bottom:8px;flex-shrink:0;">
+                <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-secondary);"><div style="width:20px;height:2.5px;background:#475569;border-radius:2px;"></div>Faktinės</div>
+                <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-secondary);"><div style="width:20px;height:0;border-top:2px dashed #93C5FD;"></div>Biudžetas</div>
+              </div>
+              <div style="flex:1;min-height:0;position:relative;"><canvas id="chart-trend"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE 4 — Priežiūros grafikas (Gantt) -->
+        <div class="page" id="p4">
+          <div class="p1-body">
+            <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+              <div style="font-size:13px;font-weight:600;color:var(--text-primary);">Priežiūros Gantt — 2024 m.</div>
+              <div style="display:flex;gap:10px;margin-left:auto;">
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:#475569;"></div>Priežiūra</div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:#DC2626;"></div>Remontas</div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:#16A34A;"></div>Inspektavimas</div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:#D97706;"></div>Kalibracija</div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-secondary);"><div style="width:10px;height:10px;border-radius:2px;background:#9E9E9E;"></div>Valymas</div>
+              </div>
+            </div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);flex:1;min-height:0;overflow:hidden;padding:10px 14px;">
+              <div style="position:relative;width:100%;height:100%;"><canvas id="chart-gantt"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAGE 5 — Ataskaitos suvestinė -->
+        <div class="page" id="p5">
+          <div class="p1-body">
+            <div style="font-size:13px;font-weight:600;color:var(--text-primary);flex-shrink:0;">Sąnaudų suvestinė ataskaita — 2024 m.</div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+              <div class="tbl-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Objektas</th>
+                      <th>Turtas</th>
+                      <th>Darbuotojas</th>
+                      <th>Paslauga</th>
+                      <th>Apskaitos eilutė</th>
+                      <th class="num">Įrašai</th>
+                      <th class="num">Faktinės (€)</th>
+                      <th class="num">Biudžetas (€)</th>
+                      <th class="num">Skirtumas (€)</th>
+                      <th class="num">Skirtumas (%)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="p5-tbody"></tbody>
+                  <tfoot id="p5-tfoot"></tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /main-area -->
+  </div><!-- /body-row -->
+</div><!-- /report-canvas -->
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────────────
+const ASSETS = [
+  { id:1,  name:"Šildymo sistema",      value:48000, status:"Aktyvus",   obj:"Objektas A", emp:"Tomas Januškevičius", svc:"Priežiūra",     acc:"Priežiūros sąnaudos", actual:5200, budget:4100 },
+  { id:2,  name:"HVAC sistema A1",      value:62000, status:"Aktyvus",   obj:"Objektas A", emp:"Rūta Petrauskienė",  svc:"Remontas",      acc:"Remonto sąnaudos",    actual:8800, budget:9500 },
+  { id:3,  name:"HVAC sistema B2",      value:60000, status:"Aktyvus",   obj:"Objektas B", emp:"Darius Mockus",      svc:"Remontas",      acc:"Remonto sąnaudos",    actual:7400, budget:6200 },
+  { id:4,  name:"Vėdinimo sistema",     value:35000, status:"Aktyvus",   obj:"Objektas B", emp:"Linas Šimkus",       svc:"Priežiūra",     acc:"Priežiūros sąnaudos", actual:3100, budget:3800 },
+  { id:5,  name:"Kompresorius KMP-200", value:27000, status:"Neaktyvus", obj:"Objektas C", emp:"Jelena Žukova",      svc:"Remontas",      acc:"Remonto sąnaudos",    actual:4600, budget:3900 },
+  { id:6,  name:"Elektros skydinė",     value:41000, status:"Aktyvus",   obj:"Objektas C", emp:"Tomas Januškevičius",svc:"Inspektavimas", acc:"Paslaugų sąnaudos",   actual:2800, budget:3200 },
+  { id:7,  name:"Vandentiekio sistema", value:53000, status:"Aktyvus",   obj:"Objektas D", emp:"Rūta Petrauskienė", svc:"Priežiūra",     acc:"Priežiūros sąnaudos", actual:4900, budget:4400 },
+  { id:8,  name:"Liftas Nr. 1",         value:88000, status:"Aktyvus",   obj:"Objektas D", emp:"Darius Mockus",      svc:"Kalibracija",   acc:"Paslaugų sąnaudos",   actual:6300, budget:7000 },
+  { id:9,  name:"Liftas Nr. 2",         value:85000, status:"Aktyvus",   obj:"Objektas E", emp:"Linas Šimkus",       svc:"Kalibracija",   acc:"Paslaugų sąnaudos",   actual:7100, budget:6500 },
+  { id:10, name:"Apsaugos sistema",     value:32000, status:"Aktyvus",   obj:"Objektas E", emp:"Jelena Žukova",      svc:"Inspektavimas", acc:"Paslaugų sąnaudos",   actual:2200, budget:2900 },
+  { id:11, name:"Kondicionierius",      value:22000, status:"Neaktyvus", obj:"Objektas F", emp:"Tomas Januškevičius",svc:"Valymas",       acc:"Paslaugų sąnaudos",   actual:1800, budget:1500 },
+  { id:12, name:"Generatorius",         value:74000, status:"Aktyvus",   obj:"Objektas F", emp:"Rūta Petrauskienė", svc:"Priežiūra",     acc:"Priežiūros sąnaudos", actual:5500, budget:6200 },
+  { id:13, name:"Gaisrinė sistema",     value:45000, status:"Aktyvus",   obj:"Objektas G", emp:"Darius Mockus",      svc:"Inspektavimas", acc:"Paslaugų sąnaudos",   actual:3900, budget:3100 },
+  { id:14, name:"Apšvietimo sistema",   value:19000, status:"Aktyvus",   obj:"Objektas H", emp:"Linas Šimkus",       svc:"Valymas",       acc:"Paslaugų sąnaudos",   actual:1400, budget:1800 },
+];
+
+const RECORDS = {
+  1:[ {date:"2024-02-10",desc:"Katilinės patikra ir aptarnavimas",    emp:"Tomas Januškevičius",svc:"Priežiūra",    sum:1200},
+      {date:"2024-04-15",desc:"Nuotėkio tikrinimas",                  emp:"Tomas Januškevičius",svc:"Inspektavimas",sum:800},
+      {date:"2024-07-22",desc:"Filtro keitimas",                      emp:"Tomas Januškevičius",svc:"Priežiūra",    sum:1600},
+      {date:"2024-10-05",desc:"Sezoninis reguliavimas",               emp:"Tomas Januškevičius",svc:"Kalibracija",  sum:1600}],
+  2:[ {date:"2024-01-18",desc:"Kondensatoriaus valymas",              emp:"Rūta Petrauskienė",  svc:"Valymas",      sum:1900},
+      {date:"2024-05-09",desc:"Freono papildymas",                    emp:"Rūta Petrauskienė",  svc:"Remontas",     sum:2400},
+      {date:"2024-08-30",desc:"Kompresorius – remontas",              emp:"Rūta Petrauskienė",  svc:"Remontas",     sum:4500}],
+  3:[ {date:"2024-03-12",desc:"Siurblio keitimas",                    emp:"Darius Mockus",      svc:"Remontas",     sum:3200},
+      {date:"2024-06-20",desc:"Vamzdyno patikra",                     emp:"Darius Mockus",      svc:"Inspektavimas",sum:900},
+      {date:"2024-09-14",desc:"Termostatų reguliavimas",              emp:"Darius Mockus",      svc:"Kalibracija",  sum:2100},
+      {date:"2024-11-28",desc:"Avarinė intervencija",                 emp:"Darius Mockus",      svc:"Remontas",     sum:1200}],
+  4:[ {date:"2024-02-20",desc:"Filtrų keitimas",                      emp:"Linas Šimkus",       svc:"Priežiūra",    sum:900},
+      {date:"2024-06-04",desc:"Ventiliatoriaus sutepimas",            emp:"Linas Šimkus",       svc:"Priežiūra",    sum:800},
+      {date:"2024-09-17",desc:"Oro srautų balanso patikra",           emp:"Linas Šimkus",       svc:"Inspektavimas",sum:1400}],
+  5:[ {date:"2024-01-25",desc:"Alyvos keitimas",                      emp:"Jelena Žukova",      svc:"Priežiūra",    sum:1100},
+      {date:"2024-04-18",desc:"Sandariklių keitimas",                 emp:"Jelena Žukova",      svc:"Remontas",     sum:2200},
+      {date:"2024-07-30",desc:"Slėgio matavimas ir reguliavimas",     emp:"Jelena Žukova",      svc:"Kalibracija",  sum:800},
+      {date:"2024-10-22",desc:"Avarinė plokštės keitimas",            emp:"Jelena Žukova",      svc:"Remontas",     sum:500}],
+  6:[ {date:"2024-03-05",desc:"Saugiklių patikra",                    emp:"Tomas Januškevičius",svc:"Inspektavimas",sum:900},
+      {date:"2024-07-11",desc:"Kabelių izoliacijos tikrinimas",       emp:"Tomas Januškevičius",svc:"Inspektavimas",sum:1100},
+      {date:"2024-11-06",desc:"Jungtukų valymas ir sutepimas",        emp:"Tomas Januškevičius",svc:"Valymas",      sum:800}],
+  7:[ {date:"2024-02-14",desc:"Vamzdžių patikra ir valymas",          emp:"Rūta Petrauskienė",  svc:"Priežiūra",    sum:1300},
+      {date:"2024-05-28",desc:"Čiaupų keitimas",                      emp:"Rūta Petrauskienė",  svc:"Remontas",     sum:1500},
+      {date:"2024-08-19",desc:"Nuotekų linijų tikrinimas",            emp:"Rūta Petrauskienė",  svc:"Inspektavimas",sum:1100},
+      {date:"2024-12-03",desc:"Slėgio balansavimas",                  emp:"Rūta Petrauskienė",  svc:"Kalibracija",  sum:1000}],
+  8:[ {date:"2024-01-30",desc:"Metinė techninė apžiūra",              emp:"Darius Mockus",      svc:"Inspektavimas",sum:1800},
+      {date:"2024-06-12",desc:"Kabelio ir stabdžių patikra",          emp:"Darius Mockus",      svc:"Priežiūra",    sum:2100},
+      {date:"2024-10-09",desc:"Greičio valdiklio kalibracija",        emp:"Darius Mockus",      svc:"Kalibracija",  sum:2400}],
+  9:[ {date:"2024-02-22",desc:"Metinė techninė apžiūra",              emp:"Linas Šimkus",       svc:"Inspektavimas",sum:1800},
+      {date:"2024-05-16",desc:"Kabelio keitimas",                     emp:"Linas Šimkus",       svc:"Remontas",     sum:2800},
+      {date:"2024-08-08",desc:"Sklandiklių tepimas",                  emp:"Linas Šimkus",       svc:"Priežiūra",    sum:1400},
+      {date:"2024-11-20",desc:"Greičio kalibracija",                  emp:"Linas Šimkus",       svc:"Kalibracija",  sum:1100}],
+  10:[{date:"2024-03-18",desc:"Kamerų patikra ir valymas",            emp:"Jelena Žukova",      svc:"Valymas",      sum:700},
+      {date:"2024-07-24",desc:"Programinės įrangos atnaujinimas",     emp:"Jelena Žukova",      svc:"Inspektavimas",sum:900},
+      {date:"2024-11-15",desc:"Signalizacijos tikrinimas",            emp:"Jelena Žukova",      svc:"Inspektavimas",sum:600}],
+  11:[{date:"2024-04-08",desc:"Filtro keitimas ir valymas",           emp:"Tomas Januškevičius",svc:"Valymas",      sum:600},
+      {date:"2024-08-14",desc:"Freono slėgio tikrinimas",             emp:"Tomas Januškevičius",svc:"Inspektavimas",sum:700},
+      {date:"2024-11-27",desc:"Dreno linijos valymas",                emp:"Tomas Januškevičius",svc:"Valymas",      sum:500}],
+  12:[{date:"2024-01-12",desc:"Alyvos keitimas ir filtrų valymas",    emp:"Rūta Petrauskienė",  svc:"Priežiūra",    sum:1400},
+      {date:"2024-04-25",desc:"Akumuliatorių patikra",                emp:"Rūta Petrauskienė",  svc:"Inspektavimas",sum:1100},
+      {date:"2024-08-01",desc:"Starterio keitimas",                   emp:"Rūta Petrauskienė",  svc:"Remontas",     sum:2000},
+      {date:"2024-11-18",desc:"Apkrovos testavimas",                  emp:"Rūta Petrauskienė",  svc:"Inspektavimas",sum:1000}],
+  13:[{date:"2024-02-05",desc:"Sprinklerių tikrinimas",               emp:"Darius Mockus",      svc:"Inspektavimas",sum:1200},
+      {date:"2024-06-18",desc:"Signalizacijos patikra ir testavimas", emp:"Darius Mockus",      svc:"Inspektavimas",sum:1400},
+      {date:"2024-09-30",desc:"Slėgio rezervuaro tikrinimas",         emp:"Darius Mockus",      svc:"Priežiūra",    sum:1300}],
+  14:[{date:"2024-03-22",desc:"Lempučių keitimas",                    emp:"Linas Šimkus",       svc:"Valymas",      sum:500},
+      {date:"2024-07-04",desc:"Šviesos jutiklių kalibracija",         emp:"Linas Šimkus",       svc:"Kalibracija",  sum:500},
+      {date:"2024-10-16",desc:"Srovės matavimas ir reguliavimas",     emp:"Linas Šimkus",       svc:"Inspektavimas",sum:400}],
+};
+
+// ── HELPERS ──────────────────────────────────────────────────────────
+const fmt  = n => n.toLocaleString("lt-LT",{minimumFractionDigits:0,maximumFractionDigits:0});
+const fmtD = n => (n > 0 ? "+" : "") + fmt(n);
+
+const LT_MONTHS = ["sausio","vasario","kovo","balandžio","gegužės","birželio",
+                   "liepos","rugpjūčio","rugsėjo","spalio","lapkričio","gruodžio"];
+function fmtDateLT(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+  const [y,m,d] = iso.split("-").map(Number);
+  return `${y} m. ${LT_MONTHS[m-1]} ${d} d.`;
+}
+
+function getFiltered() {
+  const obj  = document.getElementById("f-obj").value;
+  const emp  = document.getElementById("f-emp").value;
+  const svc  = document.getElementById("f-svc").value;
+  const acc  = document.getElementById("f-acc").value;
+  const from = document.getElementById("f-from").value;
+  const to   = document.getElementById("f-to").value;
+  return ASSETS.filter(a => {
+    if (obj && a.obj !== obj) return false;
+    if (emp && a.emp !== emp) return false;
+    if (svc && a.svc !== svc) return false;
+    if (acc && a.acc !== acc) return false;
+    if (from || to) {
+      const recs = RECORDS[a.id] || [];
+      const ok = recs.some(r => {
+        if (from && r.date < from) return false;
+        if (to   && r.date > to)   return false;
+        return true;
+      });
+      if (!ok) return false;
+    }
+    return true;
+  });
+}
+
+function resetFilters() {
+  ["f-obj","f-emp","f-svc","f-acc"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("f-from").value = "2024-01-01";
+  document.getElementById("f-to").value   = "2024-12-31";
+  render();
+}
+
+// ── TOPBAR BADGE ─────────────────────────────────────────────────────
+function updateTopbarBadge() {
+  const from = document.getElementById("f-from").value;
+  const to   = document.getElementById("f-to").value;
+  document.getElementById("topbar-period").textContent =
+    (!from && !to) ? "Visi laikotarpiai"
+    : `${fmtDateLT(from)} – ${fmtDateLT(to)}`;
+}
+
+// ── DIVERGING BAR CHART ───────────────────────────────────────────────
+function drawObjChart(data) {
+  const canvas = document.getElementById("chart-obj");
+  const wrap   = document.getElementById("wrap-obj");
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const objs = {};
+  data.forEach(a => {
+    if (!objs[a.obj]) objs[a.obj]={actual:0,budget:0};
+    objs[a.obj].actual += a.actual; objs[a.obj].budget += a.budget;
+  });
+  const entries = Object.entries(objs)
+    .map(([name,v])=>({name,delta:v.actual-v.budget,actual:v.actual,budget:v.budget}))
+    .sort((a,b)=>b.delta-a.delta);
+
+  if (!entries.length) {
+    ctx.fillStyle="#9E9E9E"; ctx.font="11px Segoe UI,sans-serif";
+    ctx.textBaseline="middle"; ctx.fillText("Nėra duomenų",20,H/2); return;
+  }
+
+  const maxAbs = Math.max(...entries.map(e=>Math.abs(e.delta)))*1.18;
+  const LBL_W=60, VAL_W=72, PAD_T=6, PAD_B=6;
+  const CHART_W = W-LBL_W-VAL_W;
+  const ZERO_X  = LBL_W + CHART_W/2;
+  const n = entries.length;
+  const GROUP_H = (H-PAD_T-PAD_B)/n;
+  const BAR_H   = Math.max(10, Math.min(22, GROUP_H*0.5));
+
+  // Zero line
+  ctx.strokeStyle="#CBCBCB"; ctx.lineWidth=1; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(ZERO_X,PAD_T); ctx.lineTo(ZERO_X,H-PAD_B); ctx.stroke();
+  ctx.setLineDash([]);
+
+  entries.forEach(({name,delta,actual,budget},i) => {
+    const cy   = PAD_T + i*GROUP_H + GROUP_H/2;
+    const over = delta > 0;
+    const barW = Math.abs(delta)/maxAbs*(CHART_W/2);
+    const barX = over ? ZERO_X : ZERO_X-barW;
+
+    if (i < n-1) {
+      ctx.strokeStyle="#F0F0F0"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0,PAD_T+(i+1)*GROUP_H); ctx.lineTo(W,PAD_T+(i+1)*GROUP_H); ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle="#6B7280"; ctx.font="10px Segoe UI,sans-serif";
+    ctx.textAlign="right"; ctx.textBaseline="middle";
+    ctx.fillText(name.replace("Objektas ","Obj. "), LBL_W-7, cy);
+
+    // Bar
+    ctx.fillStyle = over ? "#DC2626" : "#16A34A";
+    ctx.beginPath(); ctx.roundRect(barX, cy-BAR_H/2, barW, BAR_H, 3); ctx.fill();
+
+    // Delta label
+    const dLabel = (over?"+":"")+fmt(delta)+" €";
+    ctx.font="bold 9px Segoe UI,sans-serif"; ctx.textBaseline="middle";
+    if (barW >= 46) {
+      ctx.fillStyle="#FFFFFF";
+      ctx.textAlign = over ? "right" : "left";
+      ctx.fillText(dLabel, over ? barX+barW-5 : barX+5, cy);
+    } else {
+      ctx.fillStyle = over ? "#DC2626" : "#16A34A";
+      ctx.textAlign = over ? "left" : "right";
+      ctx.fillText(dLabel, over ? ZERO_X+barW+4 : ZERO_X-barW-4, cy);
+    }
+
+    // Right values
+    const rx = LBL_W+CHART_W+5;
+    ctx.textAlign="left"; ctx.textBaseline="middle";
+    ctx.font="bold 9px Segoe UI,sans-serif";
+    ctx.fillStyle="#1A1A1A";
+    ctx.fillText(fmt(actual)+" €", rx, cy-5);
+    ctx.font="9px Segoe UI,sans-serif"; ctx.fillStyle="#9E9E9E";
+    ctx.fillText(fmt(budget)+" €", rx, cy+5);
+  });
+}
+
+// ── SERVICE BAR CHART ────────────────────────────────────────────────
+function drawSvcChart(data) {
+  const canvas = document.getElementById("chart-svc");
+  const wrap   = document.getElementById("wrap-svc");
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const svcs = {};
+  data.forEach(a => { svcs[a.svc]=(svcs[a.svc]||0)+a.actual; });
+  const entries = Object.entries(svcs).sort((a,b)=>b[1]-a[1]);
+  if (!entries.length) {
+    ctx.fillStyle="#9E9E9E"; ctx.font="11px Segoe UI,sans-serif";
+    ctx.textBaseline="middle"; ctx.fillText("Nėra duomenų",20,H/2); return;
+  }
+
+  const maxVal  = entries[0][1];
+  const LBL_W   = 90, PAD_T=6, PAD_B=6;
+  const CHART_W = W-LBL_W-8;
+  const n       = entries.length;
+  const GROUP_H = (H-PAD_T-PAD_B)/n;
+  const BAR_H   = Math.max(14, Math.min(28, GROUP_H*0.58));
+
+  entries.forEach(([name,val],i) => {
+    const cy = PAD_T+i*GROUP_H+GROUP_H/2;
+    const y0 = cy-BAR_H/2;
+    const wA = maxVal>0 ? (val/maxVal)*CHART_W : 0;
+
+    if (i < n-1) {
+      ctx.strokeStyle="#F0F0F0"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(0,PAD_T+(i+1)*GROUP_H); ctx.lineTo(W,PAD_T+(i+1)*GROUP_H); ctx.stroke();
+    }
+
+    ctx.fillStyle="#6B7280"; ctx.font="10px Segoe UI,sans-serif";
+    ctx.textAlign="right"; ctx.textBaseline="middle";
+    ctx.fillText(name, LBL_W-6, cy);
+
+    ctx.fillStyle="#475569";
+    ctx.beginPath(); ctx.roundRect(LBL_W, y0, wA, BAR_H, 3); ctx.fill();
+
+    const vLabel = fmt(val)+" €";
+    ctx.font="bold 10px Segoe UI,sans-serif"; ctx.textBaseline="middle";
+    if (wA >= 52) {
+      ctx.fillStyle="#FFFFFF"; ctx.textAlign="right";
+      ctx.fillText(vLabel, LBL_W+wA-8, cy);
+    } else {
+      ctx.fillStyle="#475569"; ctx.textAlign="left";
+      ctx.fillText(vLabel, LBL_W+wA+5, cy);
+    }
+  });
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────
+function renderKPIs(data) {
+  const totalActual = data.reduce((s,a)=>s+a.actual,0);
+  const totalBudget = data.reduce((s,a)=>s+a.budget,0);
+  const delta = totalActual - totalBudget;
+  const objA={}, objB={};
+  data.forEach(a=>{
+    objA[a.obj]=(objA[a.obj]||0)+a.actual;
+    objB[a.obj]=(objB[a.obj]||0)+a.budget;
+  });
+  const objs = Object.keys(objA);
+  const overCount = objs.filter(o=>objA[o]>objB[o]).length;
+
+  document.getElementById("kpi-actual").textContent = fmt(totalActual)+" €";
+  document.getElementById("kpi-budget").textContent = fmt(totalBudget)+" €";
+
+  const kEl = document.getElementById("kpi-delta");
+  kEl.textContent = fmtD(delta)+" €";
+  kEl.className = "kpi-value"+(delta>0?" danger":delta<0?" success":"");
+  document.getElementById("kpi-delta-sub").textContent = delta>0?"Viršijamas biudžetas":"Nepanaudotas biudžetas";
+
+  document.getElementById("kpi-over").textContent = overCount;
+  document.getElementById("kpi-over").className = "kpi-value";
+  const sub = document.getElementById("kpi-over-sub");
+  sub.textContent = `iš ${objs.length} objektų`;
+  sub.style.color = overCount>0?"var(--danger)":"var(--text-muted)";
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────
+function renderTable(data) {
+  const tbody = document.getElementById("p1-tbody");
+  tbody.innerHTML = "";
+  const shown = data.length, total = ASSETS.length;
+  document.getElementById("tbl-count").textContent =
+    shown < total ? `${shown} iš ${total} turto vienetų` : `${total} turto vienetų`;
+
+  [...data].sort((a,b)=>(b.actual-b.budget)-(a.actual-a.budget)).forEach(a => {
+    const d = a.actual-a.budget;
+    const tr = document.createElement("tr");
+    tr.onclick = ()=>openDetail(a.id);
+    tr.innerHTML = `
+      <td style="font-weight:600">${a.name}</td>
+      <td class="num">${fmt(a.value)}</td>
+      <td style="text-align:center"><span class="status-dot ${a.status==="Aktyvus"?"ok":"off"}" title="${a.status}"></span></td>
+      <td class="muted">${a.obj}</td>
+      <td class="num">${RECORDS[a.id]?.length??0}</td>
+      <td class="num">${fmt(a.actual)}</td>
+      <td class="num">${fmt(a.budget)}</td>
+      <td class="num"><span class="dv ${d>0?"pos":"neg"}">${fmtD(d)}</span></td>
+      <td class="muted">${a.svc}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── DRILL THROUGH ─────────────────────────────────────────────────────
+function openDetail(id) {
+  const a = ASSETS.find(x=>x.id===id); if (!a) return;
+  const d = a.actual-a.budget;
+  document.getElementById("p2-name").textContent  = a.name;
+  document.getElementById("m-obj").textContent    = a.obj;
+  document.getElementById("m-status").textContent = a.status;
+  document.getElementById("m-value").textContent  = fmt(a.value)+" €";
+  document.getElementById("m-emp").textContent    = a.emp;
+  document.getElementById("m-svc").textContent    = a.svc;
+  document.getElementById("m-acc").textContent    = a.acc;
+  document.getElementById("m-actual").textContent = fmt(a.actual)+" €";
+  document.getElementById("m-budget").textContent = fmt(a.budget)+" €";
+  const mD = document.getElementById("m-delta");
+  mD.textContent = fmtD(d)+" €";
+  mD.className = "meta-val "+(d>0?"danger":"success");
+
+  const tbody = document.getElementById("p2-tbody");
+  tbody.innerHTML="";
+  (RECORDS[id]||[]).forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="muted">${fmtDateLT(r.date)}</td>
+      <td style="white-space:normal;min-width:200px">${r.desc}</td>
+      <td class="muted">${r.emp}</td>
+      <td class="muted">${r.svc}</td>
+      <td class="num" style="font-weight:600">${fmt(r.sum)} €</td>`;
+    tbody.appendChild(tr);
+  });
+  showPage("p2");
+}
+
+// ── DATE MASK ─────────────────────────────────────────────────────────
+function applyDateMask(el) {
+  el.addEventListener("input", function() {
+    let v = this.value.replace(/\D/g,"");
+    if (v.length > 8) v = v.slice(0,8);
+    if (v.length >= 5)      v = v.slice(0,4)+"-"+v.slice(4,6)+"-"+v.slice(6);
+    else if (v.length >= 3) v = v.slice(0,4)+"-"+v.slice(4);
+    this.value = v;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) render();
+  });
+  el.addEventListener("blur", function() {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.value)) this.value = "";
+    render();
+  });
+}
+applyDateMask(document.getElementById("f-from"));
+applyDateMask(document.getElementById("f-to"));
+
+// ── TREND CHART (P3) ──────────────────────────────────────────────────
+const MONTHLY_DATA = [
+  {m:"Sau", actual:8400, budget:7200},
+  {m:"Vas", actual:4100, budget:5000},
+  {m:"Kov", actual:3200, budget:4800},
+  {m:"Bal", actual:5800, budget:5500},
+  {m:"Geg", actual:6200, budget:5800},
+  {m:"Bir", actual:4900, budget:5200},
+  {m:"Lie", actual:5500, budget:5200},
+  {m:"Rgp", actual:7800, budget:6000},
+  {m:"Rgs", actual:5100, budget:5400},
+  {m:"Spa", actual:6300, budget:5600},
+  {m:"Lap", actual:4200, budget:5000},
+  {m:"Grd", actual:3500, budget:4900},
+];
+
+function drawTrendChart() {
+  const canvas = document.getElementById("chart-trend");
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  if (!W || !H) return;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const PAD_L=36, PAD_R=16, PAD_T=10, PAD_B=28;
+  const CW = W-PAD_L-PAD_R, CH = H-PAD_T-PAD_B;
+  const maxV = Math.max(...MONTHLY_DATA.flatMap(d=>[d.actual,d.budget]))*1.1;
+  const n = MONTHLY_DATA.length;
+  const xStep = CW/(n-1);
+
+  // Gridlines
+  for (let g=0; g<=4; g++) {
+    const y = PAD_T + CH - (g/4)*CH;
+    ctx.strokeStyle="#F0F0F0"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(PAD_L,y); ctx.lineTo(PAD_L+CW,y); ctx.stroke();
+    ctx.fillStyle="#9E9E9E"; ctx.font="9px Segoe UI,sans-serif";
+    ctx.textAlign="right"; ctx.textBaseline="middle";
+    ctx.fillText(fmt(maxV*g/4/1000)+"k", PAD_L-4, y);
+  }
+
+  // Budget line dashed
+  ctx.strokeStyle="#93C5FD"; ctx.lineWidth=2; ctx.setLineDash([5,4]);
+  ctx.beginPath();
+  MONTHLY_DATA.forEach((d,i) => {
+    const x = PAD_L+i*xStep;
+    const y = PAD_T+CH-(d.budget/maxV)*CH;
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // Actual area fill
+  ctx.fillStyle="rgba(71,85,105,0.08)";
+  ctx.beginPath();
+  MONTHLY_DATA.forEach((d,i) => {
+    const x=PAD_L+i*xStep, y=PAD_T+CH-(d.actual/maxV)*CH;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.lineTo(PAD_L+(n-1)*xStep, PAD_T+CH);
+  ctx.lineTo(PAD_L, PAD_T+CH);
+  ctx.closePath(); ctx.fill();
+
+  // Actual line
+  ctx.strokeStyle="#475569"; ctx.lineWidth=2.5;
+  ctx.beginPath();
+  MONTHLY_DATA.forEach((d,i) => {
+    const x=PAD_L+i*xStep, y=PAD_T+CH-(d.actual/maxV)*CH;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // Dots + month labels
+  MONTHLY_DATA.forEach((d,i) => {
+    const x=PAD_L+i*xStep;
+    const yA=PAD_T+CH-(d.actual/maxV)*CH;
+    const over = d.actual>d.budget;
+    ctx.fillStyle=over?"#DC2626":"#475569";
+    ctx.strokeStyle="#fff"; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(x,yA,4,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle="#9E9E9E"; ctx.font="9px Segoe UI,sans-serif";
+    ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText(d.m, x, PAD_T+CH+6);
+  });
+}
+
+// ── GANTT CHART (P4) ──────────────────────────────────────────────────
+function drawGanttChart() {
+  const canvas = document.getElementById("chart-gantt");
+  if (!canvas) return;
+  const wrap = canvas.parentElement;
+  const dpr = window.devicePixelRatio || 1;
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  if (!W || !H) return;
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const SVC_COL = {"Priežiūra":"#475569","Remontas":"#DC2626","Inspektavimas":"#16A34A","Kalibracija":"#D97706","Valymas":"#9E9E9E"};
+  const LBL_W = 130, PAD_T = 24, PAD_B = 8;
+  const CHART_W = W - LBL_W;
+  const START = new Date("2024-01-01").getTime();
+  const END   = new Date("2024-12-31").getTime();
+  const RANGE = END - START;
+
+  // Flatten all records with asset info
+  const rows = ASSETS.map(a => ({
+    name: a.name,
+    recs: (RECORDS[a.id]||[]).map(r=>({...r, assetId:a.id}))
+  })).filter(r=>r.recs.length>0);
+
+  const n = rows.length;
+  const ROW_H = Math.max(18, Math.min(32, (H-PAD_T-PAD_B)/n));
+
+  // Month gridlines + labels
+  const MONTHS_LT = ["Sau","Vas","Kov","Bal","Geg","Bir","Lie","Rgp","Rgs","Spa","Lap","Grd"];
+  for (let m=0; m<12; m++) {
+    const mx = LBL_W + (new Date(2024,m,1).getTime()-START)/RANGE*CHART_W;
+    ctx.strokeStyle="#F0F0F0"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(mx,PAD_T); ctx.lineTo(mx,H-PAD_B); ctx.stroke();
+    ctx.fillStyle="#9E9E9E"; ctx.font="9px Segoe UI,sans-serif";
+    ctx.textAlign="left"; ctx.textBaseline="top";
+    ctx.fillText(MONTHS_LT[m], mx+2, 6);
+  }
+
+  rows.forEach(({name, recs}, i) => {
+    const cy = PAD_T + i*ROW_H + ROW_H/2;
+    const barH = Math.max(8, ROW_H*0.45);
+
+    // Row background alternating
+    if (i%2===0) {
+      ctx.fillStyle="rgba(0,0,0,0.015)";
+      ctx.fillRect(0, PAD_T+i*ROW_H, W, ROW_H);
+    }
+
+    // Row separator
+    ctx.strokeStyle="#F3F3F3"; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,PAD_T+i*ROW_H); ctx.lineTo(W,PAD_T+i*ROW_H); ctx.stroke();
+
+    // Asset label
+    ctx.fillStyle="#6B7280"; ctx.font="10px Segoe UI,sans-serif";
+    ctx.textAlign="left"; ctx.textBaseline="middle";
+    const lbl = name.length>18 ? name.slice(0,17)+"…" : name;
+    ctx.fillText(lbl, 0, cy);
+
+    // Record bars
+    recs.forEach(r => {
+      const d = new Date(r.date).getTime();
+      const x = LBL_W + (d-START)/RANGE*CHART_W;
+      const barW = Math.max(6, CHART_W/52); // ~1 week width
+      ctx.fillStyle = SVC_COL[r.svc]||"#9E9E9E";
+      ctx.beginPath(); ctx.roundRect(x-barW/2, cy-barH/2, barW, barH, 2); ctx.fill();
+    });
+  });
+
+  // Right border
+  ctx.strokeStyle="#E0E0E0"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(LBL_W,PAD_T); ctx.lineTo(LBL_W,H-PAD_B); ctx.stroke();
+}
+
+// ── REPORT TABLE (P5) ──────────────────────────────────────────────────
+function buildReportTable() {
+  const tbody = document.getElementById("p5-tbody");
+  const tfoot = document.getElementById("p5-tfoot");
+  if (!tbody) return;
+  tbody.innerHTML = ""; tfoot.innerHTML = "";
+
+  const sorted = [...ASSETS].sort((a,b)=>a.obj.localeCompare(b.obj)||a.name.localeCompare(b.name));
+  let totActual=0, totBudget=0, totRecs=0;
+
+  sorted.forEach(a => {
+    const d = a.actual-a.budget;
+    const pct = ((d/a.budget)*100).toFixed(1);
+    totActual+=a.actual; totBudget+=a.budget; totRecs+=RECORDS[a.id]?.length||0;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="muted">${a.obj}</td>
+      <td style="font-weight:600">${a.name}</td>
+      <td class="muted">${a.emp}</td>
+      <td class="muted">${a.svc}</td>
+      <td class="muted">${a.acc}</td>
+      <td class="num">${RECORDS[a.id]?.length||0}</td>
+      <td class="num">${fmt(a.actual)}</td>
+      <td class="num">${fmt(a.budget)}</td>
+      <td class="num"><span class="dv ${d>0?"pos":"neg"}">${fmtD(d)}</span></td>
+      <td class="num"><span class="dv ${d>0?"pos":"neg"}">${d>0?"+":""}${pct}%</span></td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Totals row — 10 columns matching thead exactly
+  const totD = totActual-totBudget;
+  const totPct = ((totD/totBudget)*100).toFixed(1);
+  const tr = document.createElement("tr");
+  tr.style.cssText = "border-top:2px solid var(--border);background:var(--canvas);";
+  tr.innerHTML = `
+    <td style="padding:7px 10px;font-size:10px;font-weight:700;color:var(--text-secondary);" colspan="5">IŠ VISO</td>
+    <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:11px;">${totRecs}</td>
+    <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:11px;">${fmt(totActual)}</td>
+    <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:11px;">${fmt(totBudget)}</td>
+    <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:11px;"><span class="dv ${totD>0?"pos":"neg"}">${fmtD(totD)}</span></td>
+    <td style="padding:7px 10px;text-align:right;font-weight:700;font-size:11px;"><span class="dv ${totD>0?"pos":"neg"}">${totD>0?"+":""}${totPct}%</span></td>`;
+  tfoot.appendChild(tr);
+}
+
+// ── SIDEBAR NAV — updated to render pages on switch ───────────────────
+function navTo(pageId) {
+  document.querySelectorAll(".nav-item").forEach(n=>n.classList.remove("active"));
+  const navEl = document.getElementById("nav-"+pageId);
+  if (navEl) navEl.classList.add("active");
+  document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
+  document.getElementById(pageId).classList.add("active");
+  document.getElementById("filterbar").style.display = pageId==="p1"?"flex":"none";
+
+  if (pageId==="p3") requestAnimationFrame(()=>requestAnimationFrame(()=>drawTrendChart()));
+  if (pageId==="p4") requestAnimationFrame(()=>requestAnimationFrame(()=>drawGanttChart()));
+  if (pageId==="p5") buildReportTable();
+}
+
+function goBack() {
+  navTo("p1");
+}
+
+function showPage(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+  document.getElementById("filterbar").style.display = id === "p1" ? "flex" : "none";
+  // Update sidebar highlight: p2 keeps p1 highlighted
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  const target = id === "p2" ? "p1" : id;
+  const navEl = document.getElementById("nav-"+target);
+  if (navEl) navEl.classList.add("active");
+}
+
+// ── MAIN RENDER ───────────────────────────────────────────────────────
+function render() {
+  const data = getFiltered();
+  updateTopbarBadge();
+  renderKPIs(data);
+  renderTable(data);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    drawObjChart(data);
+    drawSvcChart(data);
+  }));
+}
+
+document.querySelectorAll(".filterbar select").forEach(el=>{
+  el.addEventListener("change", render);
+});
+
+requestAnimationFrame(()=>requestAnimationFrame(()=>render()));
+</script>
+</body>
+</html>
